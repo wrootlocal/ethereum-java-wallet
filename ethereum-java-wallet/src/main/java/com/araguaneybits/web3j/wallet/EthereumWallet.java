@@ -19,6 +19,7 @@ import com.araguaneybits.etherscan.EtherscanService;
 import com.araguaneybits.etherscan.Result;
 import com.araguaneybits.etherscan.Transactions;
 import java.io.File;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.FileSystems;
@@ -31,6 +32,7 @@ import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.response.EthBlock;
+import org.web3j.protocol.core.methods.response.EthGasPrice;
 import org.web3j.protocol.core.methods.response.EthGetBalance;
 import org.web3j.protocol.core.methods.response.Transaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
@@ -240,6 +242,11 @@ public class EthereumWallet {
             throw ex;
         }
     }
+    
+    public BigInteger getGasPrice() throws IOException {
+        EthGasPrice ethGasPrice = web3j.ethGasPrice().send();
+        return ethGasPrice.getGasPrice();
+    }
 
     public static void main(String[] args) {
         try {
@@ -270,17 +277,16 @@ public class EthereumWallet {
             addressMap.put(addressSender, addressSender);
 
             Scanner input = new Scanner(System.in);
-
+            BigDecimal x18 = new BigDecimal("1000000000000000000");
             OUTER:
             while (true) {
-                System.out.println("Ingrese una opcion (1) Ver saldo, (2) Enviar, (3) Listar transacciones, (0) Salir");
+                System.out.println("Ingrese una opcion (1) Ver saldo, (2) Enviar, (3) Listar transacciones (4) Enviar todo el saldo, (0) Salir");
                 int option = input.nextInt();
                 System.out.println("option " + option);
                 switch (option) {
                     case 1:
                         // Ver saldo
                         BigInteger wei = e.getAddressBalance(addressSender);
-                        BigDecimal x18 = new BigDecimal("1000000000000000000");
                         BigDecimal bigDecimal = new BigDecimal(wei);
                         BigDecimal div = bigDecimal.divide(x18);
                         System.out.println("El saldo de su cuenta " + addressSender + " es: " + div + " ether");
@@ -319,6 +325,40 @@ public class EthereumWallet {
 
                         }
                         System.out.println("######################### TX #########################");
+                        break;
+                    case 4:
+                        // Enviar todo
+                        BigInteger balance = e.getAddressBalance(addressSender);
+                        BigDecimal balanceDecimal = new BigDecimal(balance);
+                        BigDecimal inEther = balanceDecimal.divide(x18);
+                        System.out.println("El saldo de su cuenta " + addressSender + " es: " + inEther + " ether");
+                        
+                        BigInteger gas = BigInteger.ZERO;
+                        gas = gas.add(org.web3j.tx.Transfer.GAS_LIMIT);
+                        gas = gas.multiply(e.getGasPrice() ); // org.web3j.tx.ManagedTransaction.GAS_PRICE
+                        
+                        System.out.println("Ingrese la cuenta destino ");
+                        String sendAccount2 = input.next();
+                        
+                        System.out.println("GAS_LIMIT: " + org.web3j.tx.Transfer.GAS_LIMIT);
+                        System.out.println("GAS_PRICE: " + e.getGasPrice() ); // org.web3j.tx.ManagedTransaction.GAS_PRICE
+                        System.out.println("gas " + gas);
+                        
+                        BigInteger etherWithoutFees = BigInteger.ZERO; 
+                        etherWithoutFees = etherWithoutFees.add(balance);                                
+                        etherWithoutFees = etherWithoutFees.subtract(gas);
+
+                        BigDecimal ewf = new BigDecimal(etherWithoutFees);
+                        BigDecimal witoutFees = ewf.divide(x18);
+                        System.out.println("etherWithoutFees " + etherWithoutFees);
+                        System.out.println("witoutFees " + witoutFees);
+                        
+                        try {
+                            e.sendCoins(credentials, sendAccount2, witoutFees);
+                        } catch (Exception ex) {
+                            System.err.println(" Fallo " + ex.getMessage());
+                        }
+                        
                         break;
                     case 0:
                         e.close();
